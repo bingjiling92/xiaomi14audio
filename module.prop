@@ -1,0 +1,6 @@
+id=audio_x14_opt
+name=Xiaomi 14 全域音频优化
+version=V3.2
+versionCode=32000
+author=bingjiling92
+description=小米14(houji/pineapple) Android16 全域音频优化。七层: 杜比DAP实时调音 + 非对称扬声器平衡(顶1014/底2x1115K独立功放) + 播放链硬件层 + DAX深层调音(virtual-bass/谐波/对白/环绕/虚拟化) + 通话麦克风(同步overlay) + 蓝牙USB HiFi低功耗 + HiRes。硬编码原厂基线保证一键完全还原。
