@@ -1,0 +1,68 @@
+#!/sbin/sh
+#################
+# Initialization
+#################
+umask 022
+ui_print() { echo "$1"; }
+set_perm() {
+  chown $1:$2 $3
+  chmod $4 $5
+}
+set_perm_recursive() {
+  chown -R $1:$2 $3
+  chmod -R $4 $5
+}
+ui_print "************************************************"
+ui_print "   Xiaomi 14 深度音频优化 V1.0"
+ui_print "   杜比DAP实时调音 + 播放链硬件优化"
+ui_print "************************************************"
+ui_print ""
+ui_print "- 设备: $(getprop ro.product.model) ($(getprop ro.product.device))"
+
+if [ "$(getprop ro.product.device)" != "houji" ]; then
+  ui_print "! 警告: 非小米14(houji)，可能不适配"
+  sleep 2
+else
+  ui_print "- 机型校验通过"
+fi
+
+for mp in /data/adb/modules/audiox14_v3 /data/adb/modules/k90pm_audio_plus; do
+  if [ -d "$mp" ] && [ ! -f "$mp/disable" ]; then
+    ui_print "! 检测到冲突模块: $(basename $mp)"
+    ui_print "!  建议先禁用，避免争抢音频挂载"
+  fi
+done
+
+if [ -x /system/bin/tinymix ]; then
+  ui_print "- tinymix 可用 ($(tinymix 2>/dev/null | wc -l) 项)"
+else
+  ui_print "! tinymix 不可用"
+fi
+if [ -f /odm/etc/dolby/dax-default.xml ]; then
+  ui_print "- 杜比 DAX 链路已识别"
+else
+  ui_print "! 未检测到 DAX"
+fi
+
+mkdir -p /data/adb/audio_x14_opt_backup/props
+getprop > /data/adb/audio_x14_opt_backup/props/all.txt 2>/dev/null
+/system/bin/tinymix > /data/adb/audio_x14_opt_backup/tinymix_all.txt 2>/dev/null
+for p in /odm/etc/dolby/dax-default.xml /vendor/etc/dolby/dax-default.xml \
+         /odm/etc/dolby/dax-default-spatializer.xml /vendor/etc/dolby/dax-default-spatializer.xml \
+         /vendor/etc/audio/sku_pineapple/audio_policy_configuration.xml \
+         /vendor/etc/audio_policy_configuration.xml \
+         /odm/etc/audio/sku_pineapple/mixer_paths_pineapple_mtp.xml; do
+  [ -f "$p" ] && cp -f "$p" "/data/adb/audio_x14_opt_backup/$(echo $p | sed 's|^/||; s|/|_|g')" 2>/dev/null
+done
+ui_print "- 原厂配置已备份"
+
+set_perm_recursive $MODPATH 0 0 0755 0644
+ui_print ""
+ui_print "- 安装完成，重启生效"
+ui_print ""
+ui_print "重要:"
+ui_print "  1. 请在设置中开启【杜比全景声】"
+ui_print "  2. KernelSU 管理器 -> 模块 -> 本模块 -> 打开 WebUI 调音"
+ui_print "  3. 命令行: sh /data/adb/modules/audio_x14_opt/common/x14opt.sh status"
+ui_print "  4. 还原:   sh /data/adb/modules/audio_x14_opt/common/x14opt.sh restore"
+ui_print ""
