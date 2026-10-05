@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>X14 Audio V3.2</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --g1:#7c3aed; --g2:#2563eb; --g3:#ec4899; --g4:#06b6d4;
+  --glass:rgba(255,255,255,.13); --glass2:rgba(255,255,255,.08);
+  --br:rgba(255,255,255,.22); --txt:#fff; --dim:rgba(255,255,255,.62);
+}
+body{
+  min-height:100vh; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  color:var(--txt); padding:16px 14px 40px;
+  background:#0b0618;
+  background-image:
+    radial-gradient(1100px 620px at 8% -8%,  rgba(124,58,237,.62), transparent 62%),
+    radial-gradient(950px 560px at 96% 8%,   rgba(236,72,153,.50), transparent 60%),
+    radial-gradient(900px 700px at 50% 108%, rgba(6,182,212,.46), transparent 62%),
+    radial-gradient(700px 500px at 88% 62%,  rgba(37,99,235,.42), transparent 62%),
+    linear-gradient(165deg,#150c2e 0%,#0a0616 48%,#100b26 100%);
+  background-attachment:fixed;
+}
+.wrap{max-width:640px;margin:0 auto}
+
+.card{
+  position:relative;overflow:hidden;
+  background:var(--glass);
+  backdrop-filter:blur(12px) saturate(160%);
+  -webkit-backdrop-filter:blur(12px) saturate(160%);
+  border:1px solid var(--br);
+  border-radius:20px;
+  padding:16px 14px;
+  margin-bottom:14px;
+  box-shadow:0 6px 22px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.16);
+}
+.card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:46%;
+  background:linear-gradient(135deg,rgba(255,255,255,.13),transparent 60%);
+  pointer-events:none;
+}
+/* 不支持毛玻璃的环境降级为不透明, 避免每帧重绘 */
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  .card{background:rgba(30,20,55,.92)}
+  .btn{background:rgba(60,45,95,.92)}
+}
+
+h1{
+  font-size:21px;font-weight:800;letter-spacing:.5px;
+  background:linear-gradient(92deg,#fff,#d9c6ff 55%,#a5e8ff);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  text-align:center;margin-bottom:3px;
+}
+.sub{text-align:center;font-size:11.5px;color:var(--dim);margin-bottom:16px;letter-spacing:.4px}
+
+h2{
+  font-size:12.5px;font-weight:700;color:#fff;letter-spacing:1.4px;
+  text-transform:uppercase;margin-bottom:11px;
+  display:flex;align-items:center;gap:7px;
+}
+h2::before{
+  content:'';width:3px;height:13px;border-radius:2px;
+  background:linear-gradient(180deg,var(--g3),var(--g1));
+  box-shadow:0 0 9px rgba(236,72,153,.75);
+}
+
+.sw{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:9px 11px;margin-bottom:7px;border-radius:13px;
+  background:var(--glass2);border:1px solid rgba(255,255,255,.11);
+}
+.sw label{font-size:13.5px;font-weight:600}
+.sw small{display:block;font-size:10.5px;color:var(--dim);font-weight:400;margin-top:1px}
+.tog{
+  width:47px;height:27px;border-radius:14px;flex-shrink:0;position:relative;
+  background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.2);
+  transition:.26s;cursor:pointer;
+}
+.tog::after{
+  content:'';position:absolute;top:2px;left:2px;width:21px;height:21px;
+  border-radius:50%;background:#fff;transition:.26s;
+  box-shadow:0 2px 7px rgba(0,0,0,.4);
+}
+.tog.on{background:linear-gradient(96deg,var(--g3),var(--g1));border-color:transparent}
+.tog.on::after{left:22px}
+
+.row{margin-bottom:11px}
+.row .lab{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px}
+.row .lab span:first-child{font-size:12.5px;font-weight:600}
+.row .val{
+  font-size:12px;font-weight:800;padding:2px 9px;border-radius:8px;
+  background:linear-gradient(96deg,rgba(236,72,153,.3),rgba(124,58,237,.3));
+  border:1px solid rgba(236,72,153,.42);
+  font-variant-numeric:tabular-nums;min-width:46px;text-align:center;
+}
+input[type=range]{
+  -webkit-appearance:none;width:100%;height:6px;border-radius:3px;
+  background:rgba(255,255,255,.17);outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:19px;height:19px;border-radius:50%;
+  background:linear-gradient(140deg,#fff,#e9d5ff);cursor:pointer;
+  box-shadow:0 0 11px rgba(217,182,255,.95),0 2px 6px rgba(0,0,0,.45);
+}
+
+.btns{display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:8px}
+.btns.c3{grid-template-columns:repeat(3,1fr)}
+.btns.c2{grid-template-columns:repeat(2,1fr)}
+.btn{
+  padding:11px 6px;border-radius:12px;border:1px solid rgba(255,255,255,.19);
+  background:rgba(255,255,255,.11);color:#fff;
+  font-size:12px;font-weight:700;text-align:center;cursor:pointer;
+  transition:.17s;backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);
+  line-height:1.32;box-shadow:0 3px 11px rgba(0,0,0,.26);
+}
+.btn:active{transform:scale(.945)}
+.btn .i{display:block;font-size:15px;margin-bottom:3px}
+.btn.p{background:linear-gradient(135deg,var(--g3),var(--g1));border-color:transparent;box-shadow:0 4px 16px rgba(124,58,237,.55)}
+.btn.b{background:linear-gradient(135deg,var(--g4),var(--g2));border-color:transparent;box-shadow:0 4px 16px rgba(37,99,235,.5)}
+.btn.g{background:linear-gradient(135deg,#10b981,#059669);border-color:transparent;box-shadow:0 4px 16px rgba(16,185,129,.46)}
+.btn.r{background:linear-gradient(135deg,#f43f5e,#e11d48);border-color:transparent;box-shadow:0 4px 16px rgba(244,63,94,.5)}
+.btn.d{background:linear-gradient(135deg,#94a3b8,#64748b);border-color:transparent;box-shadow:0 4px 14px rgba(100,116,139,.42)}
+
+pre{
+  background:rgba(0,0,0,.36);border:1px solid rgba(255,255,255,.11);
+  border-radius:13px;padding:11px;font-size:10.5px;line-height:1.62;
+  max-height:290px;overflow:auto;white-space:pre-wrap;word-break:break-all;
+  font-family:"SF Mono",Menlo,Consolas,monospace;color:#c9f5e4;
+}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.24);border-radius:3px}
+
+.note{font-size:10.5px;color:var(--dim);text-align:center;margin-top:11px;line-height:1.65}
+.badge{
+  display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:.7px;
+  padding:2.5px 8px;border-radius:7px;margin-bottom:9px;
+  background:linear-gradient(96deg,var(--g1),var(--g3));
+  box-shadow:0 0 13px rgba(124,58,237,.62);
+}
+.badge.warn{background:linear-gradient(96deg,#f59e0b,#ef4444);box-shadow:0 0 13px rgba(245,158,11,.6)}
+.busy{opacity:.55;pointer-events:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>X14 Audio V3.2</h1>
+<div class="sub">小米14 · houji · 非对称分频全域调音</div>
+
+<div class="card">
+  <span class="badge" id="wdBadge">守护 运行中</span>
+  <h2>核心</h2>
+  <div class="sw">
+    <div><label>总开关</label><small>master=0 时全部层失效</small></div>
+    <div class="tog" id="master"></div>
+  </div>
+  <div class="sw">
+    <div><label>守护进程</label><small>off = 手动模式，不自动补写</small></div>
+    <div class="tog" id="wdog"></div>
+  </div>
+  <div class="btns c2" style="margin-top:9px">
+    <div class="btn p" data-cmd="apply"><span class="i">⚡</span>完整应用</div>
+    <div class="btn b" data-cmd="setonly"><span class="i">💾</span>仅保存参数</div>
+  </div>
+  <div class="note">「完整应用」重启音频栈（约 2 秒卡顿）<br>「仅保存参数」不重启，声音立即生效</div>
+</div>
+
+<div class="card">
+  <h2>杜比 DAP</h2>
+  <div class="sw">
+    <div><label>DAP 调音</label><small>20 段 GEQ + 4 项增强</small></div>
+    <div class="tog" id="daptune"></div>
+  </div>
+  <div id="dapBox">
+    <div class="row"><div class="lab"><span>低音</span><span class="val" id="v_bass"></span></div><input type="range" id="bass" min="0" max="100"></div>
+    <div class="row"><div class="lab"><span>清晰度</span><span class="val" id="v_clarity"></span></div><input type="range" id="clarity" min="0" max="100"></div>
+    <div class="row"><div class="lab"><span>声场</span><span class="val" id="v_stage"></span></div><input type="range" id="stage" min="0" max="100"></div>
+    <div class="row"><div class="lab"><span>对白</span><span class="val" id="v_dialog"></span></div><input type="range" id="dialog" min="0" max="100"></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>非对称扬声器</h2>
+  <div class="sw">
+    <div><label>声道平衡</label><small>顶部 1014 / 底部 1115K</small></div>
+    <div class="tog" id="asym"></div>
+  </div>
+  <div class="row"><div class="lab"><span>顶部 1014</span><span class="val" id="v_t_gain"></span></div><input type="range" id="t_gain" min="0" max="20"></div>
+  <div class="row"><div class="lab"><span>底部 1115K</span><span class="val" id="v_b_gain"></span></div><input type="range" id="b_gain" min="0" max="20"></div>
+</div>
+
+<div class="card">
+  <h2>播放链</h2>
+  <div class="sw">
+    <div><label>硬件层</label><small>RX 音量 / 动态压缩 / 功放增益</small></div>
+    <div class="tog" id="playchain"></div>
+  </div>
+  <div class="row"><div class="lab"><span>数字音量</span><span class="val" id="v_vol"></span></div><input type="range" id="vol" min="0" max="124"></div>
+  <div class="row"><div class="lab"><span>功放增益</span><span class="val" id="v_ampgain"></span></div><input type="range" id="ampgain" min="0" max="20"></div>
+  <div class="sw">
+    <div><label>动态压缩</label><small>RX_COMP1/2 Switch</small></div>
+    <div class="tog" id="comp"></div>
+  </div>
+  <div class="sw">
+    <div><label>听筒 LOHIFI</label><small>枚举 ULP / LOHIFI</small></div>
+    <div class="tog" id="hph_hifi"></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>DAX 深层调音</h2>
+  <div class="sw">
+    <div><label>DAX</label><small>bind 挂载 + dms 重载</small></div>
+    <div class="tog" id="dax"></div>
+  </div>
+  <div id="daxBox">
+    <div class="row"><div class="lab"><span>虚拟低音</span><span class="val" id="v_dax_vbass"></span></div><input type="range" id="dax_vbass" min="0" max="100"></div>
+    <div class="row"><div class="lab"><span>低频谐波</span><span class="val" id="v_dax_harm"></span></div><input type="range" id="dax_harm" min="0" max="100"></div>
+    <div class="row"><div class="lab"><span>人声 Music</span><span class="val" id="v_dax_dialog"></span></div><input type="range" id="dax_dialog" min="0" max="100"></div>
+    <div class="row"><div class="lab"><span>动态人声</span><span class="val" id="v_dax_dyn"></span></div><input type="range" id="dax_dyn" min="0" max="100"></div>
+    <div class="row"><div class="lab"><span>空间感</span><span class="val" id="v_dax_surr"></span></div><input type="range" id="dax_surr" min="0" max="100"></div>
+    <div class="sw">
+      <div><label>虚拟化</label><small>Music virtualizer</small></div>
+      <div class="tog" id="dax_virt"></div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>其他</h2>
+  <div class="sw">
+    <div><label>3 麦通话</label><small>base + overlay 双注入</small></div>
+    <div class="tog" id="mic"></div>
+  </div>
+  <div class="sw">
+    <div><label>Hi-Res</label><small>+96000 采样率</small></div>
+    <div class="tog" id="hires"></div>
+  </div>
+  <div class="sw">
+    <div><label>外接解码</label><small>蓝牙 / USB / HiFi / 低功耗</small></div>
+    <div class="tog" id="bt_on"></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>操作</h2>
+  <div class="btns c3">
+    <div class="btn b" data-cmd="get"><span class="i">↻</span>读取</div>
+    <div class="btn g" data-cmd="status"><span class="i">📊</span>状态</div>
+    <div class="btn d" data-cmd="restore"><span class="i">↩</span>还原</div>
+  </div>
+  <pre id="out" style="margin-top:10px">就绪</pre>
+  <div class="note">还原后守护自动退出，重启手机也不会自动应用</div>
+</div>
+
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const TOG=['master','daptune','asym','playchain','comp','hph_hifi','dax','dax_virt','mic','hires','bt_on'];
+const SLD={bass:[0,100],clarity:[0,100],stage:[0,100],dialog:[0,100],
+           t_gain:[0,20],b_gain:[0,20],vol:[0,124],ampgain:[0,20],
+           dax_vbass:[0,100],dax_harm:[0,100],dax_dialog:[0,100],
+           dax_dyn:[0,100],dax_surr:[0,100]};
+const cfg={};
+
+// KernelSU WebUI 正确接口: window.ksu.exec(cmd, callbackName)
+// 回调收到 {errno, stdout, stderr}
+// XHR 在此 WebView 完全不可用(无 HTTP 服务端), 不要用 fetch
+var BUILD='ksu-exec-1';
+var _way='';
+function haveKsu(){
+  return (typeof window.ksu!=='undefined' && typeof window.ksu.exec==='function');
+}
+var _seq=0;
+function rawExec(cmd,ms){
+  return new Promise(function(res){
+    var cb='__x14cb'+(++_seq);
+    var done=false;
+    var to=setTimeout(function(){
+      if(done)return; done=true;
+      try{delete window[cb];}catch(e){}
+      res({errno:-1,stdout:'',stderr:'ksu.exec 超时 '+ms+'ms'});
+    }, ms||45000);
+    window[cb]=function(errno,stdout,stderr){
+      if(done)return; done=true;
+      clearTimeout(to);
+      try{delete window[cb];}catch(e){}
+      res({errno:errno,stdout:stdout||'',stderr:stderr||''});
+    };
+    try{
+      window.ksu.exec(cmd, cb);
+    }catch(e){
+      done=true; clearTimeout(to);
+      try{delete window[cb];}catch(e2){}
+      res({errno:-1,stdout:'',stderr:'exec 抛出异常: '+e.message});
+    }
+  });
+}
+// 传参走环境变量, 避免 shell 引号层层转义的坑
+async function sh(c){
+  if(!haveKsu()){ _way='NO-KSU-API'; return ''; }
+  var cmd='QUERY_STRING='+JSON.stringify(c)+' sh /data/adb/modules/audio_x14_opt/webroot/run.sh';
+  var r=await rawExec(cmd,45000);
+  _way='ksu.exec';
+  if(r.errno!==0 && !r.stdout){
+    return '后端错误('+r.errno+'): '+(r.stderr||'无输出');
+  }
+  return r.stdout;
+}
+function qs(cmd,extra){
+  var a=[];
+  for(var k in (extra||{})) a.push(encodeURIComponent(k)+'='+encodeURIComponent(extra[k]));
+  a.push('cmd='+encodeURIComponent(cmd));
+  return a.join('&');
+}
+// 请求串行化: ksu.exec 约1秒, 并发会互相排队造成"卡"
+let _busy=false, _pend=null;
+async function call(cmd,extra){
+  if(_busy){ _pend=[cmd,extra]; return; }
+  _busy=true;
+  var o=$('out'); o.textContent='执行中…';
+  var t=await sh(qs(cmd,extra));
+  o.textContent=t;
+  _busy=false;
+  if(_pend){ var p=_pend; _pend=null; await call(p[0],p[1]); }
+}
+function paintTog(id,on){ const e=$(id); if(e) e.classList.toggle('on',!!on); }
+function paintSld(id,v){
+  const e=$(id); if(!e) return;
+  e.value=v;
+  const box=$('v_'+id); if(box) box.textContent=v;
+}
+
+async function load(){
+  $('out').textContent='读取中… ['+BUILD+']';
+  if(!haveKsu()){
+    $('out').textContent='未检测到 window.ksu.exec\n此 WebUI 必须从 KernelSU 管理器内打开';
+    return;
+  }
+  var t=await sh('cmd=get');
+  if(!t){
+    $('out').textContent='读取失败 ('+_way+')\n若显示 NO-KSU-API：请从 KernelSU 管理器打开此 WebUI';
+    return;
+  }
+  if(t.indexOf('master=')<0){
+    $('out').textContent='返回内容异常:\n'+t.slice(0,300);
+    return;
+  }
+  t.trim().split('\n').forEach(l=>{
+    const i=l.indexOf('=');
+    if(i>0){ const k=l.slice(0,i),v=l.slice(i+1); cfg[k]=v;
+      if(k==='wdog'){ paintWd(v==='1'); return; }
+      if(TOG.indexOf(k)>=0) paintTog(k,v==='1');
+      if(SLD[k]) paintSld(k,v);
+    }
+  });
+  if(!cfg.vol) paintSld('vol',84);
+  if(!cfg.ampgain) paintSld('ampgain',18);
+  $('out').textContent='就绪 · '+_way;
+}
+
+// 守护开关状态来自后端实时查询, 不是页面默认值
+function paintWd(on){
+  const e=$('wdog'); if(!e) return;
+  e.classList.toggle('on',!!on);
+  const b=$('wdBadge'); if(!b) return;
+  b.textContent=on?'守护 运行中':'守护 已停止 · 手动模式';
+  b.className='badge'+(on?'':' warn');
+}
+
+// 联动只在开关状态变化时执行.
+// 早期版本用 setInterval(700ms) 死循环, 每帧改 opacity 触发重排,
+// 在 WebView 里表现为滚动明显卡顿 —— 改为事件驱动后归零.
+let _lk='';
+function linkage(){
+  const d=$('daptune').classList.contains('on');
+  const a=$('asym').classList.contains('on');
+  const p=$('playchain').classList.contains('on');
+  const x=$('dax').classList.contains('on');
+  const sig=[d,a,p,x].join('|');
+  if(sig===_lk) return;          // 无变化直接跳过
+  _lk=sig;
+  $('dapBox').style.opacity=d?'1':'.4';
+  $('dapBox').style.pointerEvents=d?'auto':'none';
+  ['t_gain','b_gain'].forEach(k=>{ $(k).style.opacity=a?'1':'.4'; });
+  ['vol','ampgain'].forEach(k=>{ $(k).style.opacity=p?'1':'.4'; });
+  $('daxBox').style.opacity=x?'1':'.4';
+  $('daxBox').style.pointerEvents=x?'auto':'none';
+}
+
+function bind(){
+  TOG.forEach(id=>{
+    const e=$(id); if(!e) return;
+    e.onclick=()=>{
+      const on=!e.classList.contains('on');
+      paintTog(id,on); cfg[id]=on?'1':'0';
+      call('setonly',function(o){o[id]=on?'1':'0';return o;}({}));
+    };
+  });
+  for(const k in SLD){
+    const e=$(k); if(!e) continue;
+    e.oninput=()=>{ paintSld(k,e.value); cfg[k]=e.value; };
+    // 防抖: 拖动时 change 可能连续触发, ksu.exec 约1秒会堆积
+    let tm=null;
+    e.onchange=()=>{
+      clearTimeout(tm);
+      tm=setTimeout(()=>{ const o={}; o[k]=e.value; call('setonly',o); },350);
+    };
+  }
+  document.querySelectorAll('[data-cmd]').forEach(b=>{
+    b.onclick=async()=>{
+      const c=b.getAttribute('data-cmd');
+      if(c==='apply'||c==='setonly'){
+        const all={}; for(const k in cfg) all[k]=cfg[k];
+        document.body.classList.add('busy');
+        await call(c,all);
+        document.body.classList.remove('busy');
+        return;
+      }
+      await call(c);
+    };
+  });
+  // 守护开关: 先乐观更新, 再以后端返回的真实状态为准
+  $('wdog').onclick=async()=>{
+    const on=!$('wdog').classList.contains('on');
+    paintWd(on);
+    const o={}; o.state=on?'on':'off';
+    await call('watchdog',o);
+    await load();          // 重新拉取, 用后端真实状态覆盖乐观值
+  };
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  bind(); load(); linkage();
+});
+</script>
+</body>
+</html>
