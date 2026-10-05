@@ -1,0 +1,54 @@
+NOTICE / 免责声明
+==================
+
+作者: bingjiling92
+项目: xiaomi14audio
+仓库: https://github.com/bingjiling92/xiaomi14audio
+
+
+1. 本仓库包含的内容
+--------------------
+- 所有 shell 脚本 (common/*.sh, service.sh, post-fs-data.sh,
+  action.sh, uninstall.sh, customize.sh)
+- WebUI 前端 (webroot/index.html, webroot/run.sh)
+- KernelSU 模块打包所需结构 (module.prop, META-INF/)
+- 文档 (README.md, docs/)
+
+上述内容均为本项目作者独立编写。
+
+
+2. 本仓库不包含的内容
+----------------------
+本项目刻意不包含以下受第三方版权或知识产权保护的材料:
+
+- 杜比实验室 (Dolby Laboratories) 的 DAX 调音数据
+  包括但不限于 dax-default.xml, dax-default-spatializer.xml
+  及其任何修改版本
+
+- 小米 / 高通的 mixer_paths, audio_policy 等原始配置文件
+  及其任何修改版本
+
+- 任何厂商 ROM 提取文件
+
+本项目仅提供「生成逻辑」与「配置指令」, 不提供也不分发
+上述受保护的原始文件与创作内容。DAX 调音文件由脚本在用户
+设备本地动态生成, 不进入本仓库。
+
+
+3. 数值说明
+------------
+common/factory.sh 中记录的数值(如 Digital Volume = 84,
+T AMP PCM Gain = 18 等), 系作者在本机通过 tinymix / getprop
+实测探测得出的事实性配置参数, 不属于任何第三方的创作作品。
+
+
+4. 免责条款
+------------
+- 本模块仅为个人技术研究与学习目的提供
+- 作者不对使用本模块导致的任何设备损坏、数据丢失或
+  音频异常承担责任
+- 用户应自行评估风险, 建议在充分了解改动内容后再应用
+- 本模块仅适配小米14 (houji / pineapple), 不保证其他机型可用
+- 用户应遵守所在地区的法律法规, 不得用于任何非法用途
+
+安装即视为已阅读并同意上述条款。
