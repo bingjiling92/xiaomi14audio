@@ -1,11 +1,12 @@
 #!/system/bin/sh
 # ============================================================
-#  audio_x14_opt  V3.0  核心引擎  全域音频优化
+#  audio_x14_opt  V3.3  核心引擎  全域音频优化
 #  小米14 / houji / pineapple / Android16 / HyperOS3
 # ============================================================
 
 MODDIR=/data/adb/modules/audio_x14_opt
 [ -d "$MODDIR" ] || MODDIR=${0%/*}
+AVER="V3.3"
 CONF=$MODDIR/x14.conf
 BAK=/data/adb/audio_x14_opt_backup
 LOG=/data/local/tmp/X14_Audio.log
@@ -91,14 +92,18 @@ hires=0
 EOF
 }
 
-KEYS="master daptune bass clarity stage dialog asym t_gain b_gain t_vol b_vol playchain vol comp hph_hifi ampgain volcurve curve_gain call_on call_fluence mic rec_on rec_gain bt_on usb_on hifi_on lowpower dax dax_vbass dax_harm dax_dialog dax_dyn dax_surr dax_virt dax_vband dax_sib dax_mbdrc hires"
-DEFS="master:1 daptune:1 bass:62 clarity:58 stage:45 dialog:55 asym:1 t_gain:19 b_gain:18 t_vol:0 b_vol:0 playchain:1 vol:92 comp:1 hph_hifi:0 ampgain:18 volcurve:0 curve_gain:0 call_on:0 call_fluence:0 mic:0 rec_on:0 rec_gain:0 bt_on:0 usb_on:0 hifi_on:0 lowpower:0 dax:0 dax_vbass:33 dax_harm:50 dax_dialog:50 dax_dyn:30 dax_surr:30 dax_virt:1 dax_vband:6 dax_sib:1 dax_mbdrc:1 hires:0"
+KEYS="master daptune bass clarity stage dialog asym t_gain b_gain t_vol b_vol playchain vol comp hph_hifi ampgain volcurve curve_gain call_on call_fluence mic rec_paths rec_on rec_gain bt_on usb_on hifi_on lowpower dax dax_vbass dax_harm dax_dialog dax_dyn dax_surr dax_virt dax_vband dax_sib dax_mbdrc hires"
+DEFS="master:1 daptune:1 bass:62 clarity:58 stage:45 dialog:55 asym:1 t_gain:19 b_gain:18 t_vol:0 b_vol:0 playchain:1 vol:92 comp:1 hph_hifi:0 ampgain:18 volcurve:0 curve_gain:0 call_on:0 call_fluence:0 mic:0 rec_paths:recorder|camcorder rec_on:0 rec_gain:0 bt_on:0 usb_on:0 hifi_on:0 lowpower:0 dax:0 dax_vbass:33 dax_harm:50 dax_dialog:50 dax_dyn:30 dax_surr:30 dax_virt:1 dax_vband:6 dax_sib:1 dax_mbdrc:1 hires:0"
 
 ensure_conf(){
   mkdir -p "$MODDIR" 2>/dev/null
   [ -s "$CONF" ] || default_conf > "$CONF" 2>/dev/null
   need=0
   for k in $KEYS; do grep -q "^$k=" "$CONF" 2>/dev/null || need=1; done
+  # V3.3 加固: 结尾没有换行时先补一个, 否则追加会把两行粘在一起
+  if [ "$need" != "0" ] && [ -s "$CONF" ] && [ "$(tail -c1 "$CONF" 2>/dev/null | wc -l)" = "0" ]; then
+    echo "" >> "$CONF"
+  fi
   [ "$need" = "0" ] && return 0
   for kv in $DEFS; do
     key=${kv%%:*}; val=${kv##*:}
@@ -138,6 +143,23 @@ ensure_backup(){
 }
 
 prop_set(){ [ -x "$RP" ] && "$RP" -n "$1" "$2" >/dev/null 2>&1; }
+
+# V3.3: 原实现在 post-fs-data 阶段抓 tinymix 快照, 那时混音器还没起来,
+#       结果 tinymix_all.txt 恒为 0 字节(README 宣称的 529 控件快照并不存在)。
+#       改到开机后由 service.sh 调用本函数补齐, 已非空则不动。
+snapshot_tinymix(){
+  _f="$BAK/tinymix_all.txt"
+  [ -s "$_f" ] && return 0
+  $TM > /dev/null 2>&1 || return 1
+  mkdir -p "$BAK" 2>/dev/null
+  $TM > "$_f" 2>/dev/null
+  if [ -s "$_f" ]; then
+    log "tinymix 快照补齐: $(grep -c . "$_f") 行"
+    return 0
+  fi
+  log "tinymix 快照失败(混音器未就绪), 还原将只依赖 factory.sh 硬编码基线"
+  return 1
+}
 ctl_exists(){ $TM 2>/dev/null | grep -qF "$1"; }
 set_ctl(){
   ctl_exists "$1" || { log "SKIP $1 不存在"; return 1; }
@@ -246,64 +268,96 @@ apply_call(){
   F=$(num "$(cfg_get call_fluence)")
   ON=false
   [ "$F" = "1" ] && ON=true
-  setprop persist.vendor.audio.fluence.voicecall "$ON" 2>/dev/null
-  setprop persist.vendor.audio.fluence.speaker "$ON" 2>/dev/null
-  setprop persist.vendor.audio.fluence.tmic.enabled "$ON" 2>/dev/null
-  setprop persist.vendor.audio.fluence.voicerec "$ON" 2>/dev/null
-  log "fluence=$F ($ON)"
+  # V3.3: 统一走 resetprop -n(不落盘)。
+  # V3.2 用普通 setprop 会持久化, 下次开机 post-fs-data 抓快照时
+  # 就会把"被改过的值"当成原厂存进备份, 还原不再干净。
+  for _k in persist.vendor.audio.fluence.voicecall persist.vendor.audio.fluence.speaker \
+            persist.vendor.audio.fluence.tmic.enabled persist.vendor.audio.fluence.voicerec; do
+    prop_set "$_k" "$ON"
+  done
+  log "fluence=$F ($ON) [resetprop -n, 不落盘]"
 }
 
-apply_mic(){
-  if [ "$(num "$(cfg_get mic)")" = "0" ]; then
+# V3.3 修复: V3.2 的 awk 打印完注入行后立刻补 </path> 且 s=1 跳过原内容,
+#            于是「追加第三路麦」实际变成「把原厂双麦替换成单麦」。
+#            实测 base 4 条 ctl -> 2 条、overlay 16 条 -> 2 条, 听筒通话链被改坏。
+#            本版改为真正追加, 并在生成后校验原厂内容仍在(少于 3 条即判失败)。
+#            同时把「录音增益」并进同一次生成, 修掉 V3.2 中 apply_rec
+#            后跑会覆盖掉麦克风注入的顺序问题。
+MIC_CTL1="TX_AIF1_CAP Mixer DEC3"
+MIC_CTL2="TX DMIC MUX3"
+MIC_DMIC="DMIC2"
+
+mic_hw_ok(){
+  ctl_exists "$MIC_CTL1" || { log "硬件不支持: $MIC_CTL1 不存在"; return 1; }
+  ctl_exists "$MIC_CTL2" || { log "硬件不支持: $MIC_CTL2 不存在"; return 1; }
+  return 0
+}
+
+# $1=原厂备份源  $2=输出文件
+build_mixer_file(){
+  _src="$1"; _dst="$2"
+  [ -f "$_src" ] || return 1
+  if [ "$(num "$(cfg_get mic)")" = "1" ]; then
+    awk -v c1="$MIC_CTL1" -v c2="$MIC_CTL2" -v dm="$MIC_DMIC" '
+      /<path name="handset-dmic-endfire">/ && !d {
+        print
+        printf "        <ctl name=\"%s\" value=\"1\" />\n", c1
+        printf "        <ctl name=\"%s\" value=\"%s\" />\n", c2, dm
+        d=1; next
+      }
+      { print }
+    ' "$_src" > "$_dst" 2>/dev/null
+  else
+    cp -f "$_src" "$_dst" 2>/dev/null
+  fi
+  [ -s "$_dst" ] || return 1
+  if [ "$(num "$(cfg_get mic)")" = "1" ]; then
+    grep -q "$MIC_CTL2" "$_dst" 2>/dev/null || { log "注入失败: 未找到 $MIC_CTL2"; return 1; }
+    _n=$(awk '/<path name="handset-dmic-endfire">/,/<\/path>/' "$_dst" | grep -c '<ctl ')
+    [ "$_n" -ge 3 ] || { log "注入校验失败: 路径内仅 $_n 条 ctl(原厂内容被丢掉)"; return 1; }
+  fi
+  R=$(num "$(cfg_get rec_gain)")
+  if [ "$(num "$(cfg_get rec_on)")" = "1" ] && [ "$R" -gt 0 ]; then
+    # V3.3: 原实现是全文 gsub, 实测会连带把 handset-tmic-endfire /
+    # speaker-dmic-endfire / va-mic-* 等【通话】路径的模拟麦增益一起改掉。
+    # 本机实测 ADC1 Volume 共出现在 9~10 处 path 中, 只应对录音路径下手。
+    awk -v R="$R" -v pat="$(cfg_get rec_paths)" '
+      BEGIN { if (pat == "") pat = "recorder|camcorder" }
+      /<path name="/ { p=$0; sub(/.*<path name="/,"",p); sub(/".*/,"",p) }
+      /<ctl name="ADC1 Volume"/ && p ~ pat { sub(/value="[0-9]+"/, "value=\"" R "\"") }
+      { print }
+    ' "$_dst" > "$_dst.tmp" 2>/dev/null && mv -f "$_dst.tmp" "$_dst" 2>/dev/null
+  fi
+  return 0
+}
+
+apply_mixer(){
+  MIC_ON=$(num "$(cfg_get mic)")
+  REC_ON=$(num "$(cfg_get rec_on)")
+  REC_G=$(num "$(cfg_get rec_gain)")
+  if [ "$MIC_ON" = "0" ] && { [ "$REC_ON" != "1" ] || [ "$REC_G" -eq 0 ]; }; then
     for f in "$MIXER_BASE" "$MIXER_OVL_S"; do
-      mount | grep -qF " $f " && { umount "$f" 2>/dev/null; log "mic bind解除 $f"; }
+      mount | grep -qF " $f " && { umount "$f" 2>/dev/null; log "mixer bind 解除 $f"; }
     done
     return 0
   fi
   mkdir -p "$WORK" 2>/dev/null
-  ok=0
-  b=$(bak_of "$MIXER_BASE")
-  if [ -f "$b" ]; then
-    awk '/<path name="handset-dmic-endfire">/ && !d {
-      print
-      print "        <ctl name=\"TX_AIF1_CAP Mixer DEC3\" value=\"1\" />"
-      print "        <ctl name=\"TX DMIC MUX3\" value=\"DMIC2\" />"
-      print "    </path>"
-      s=1; d=1; next }
-      s && /<\/path>/ { s=0; next } s { next }
-      { print }' "$b" > "$WORK/mb.xml" 2>/dev/null
-    if [ -s "$WORK/mb.xml" ] && grep -q "TX DMIC MUX3" "$WORK/mb.xml" 2>/dev/null; then
-      bind_file "$WORK/mb.xml" "$MIXER_BASE" "mixer-base" && ok=1
-    fi
+  if [ "$MIC_ON" = "1" ]; then
+    mic_hw_ok || return 1
   fi
-  b2=$(bak_of "$MIXER_OVL_S")
-  if [ -f "$b2" ]; then
-    awk '/<path name="handset-dmic-endfire">/ && !d {
-      print
-      print "        <ctl name=\"TX_AIF1_CAP Mixer DEC3\" value=\"1\" />"
-      print "        <ctl name=\"TX DMIC MUX3\" value=\"DMIC2\" />"
-      print "    </path>"
-      s=1; d=1; next }
-      s && /<\/path>/ { s=0; next } s { next }
-      { print }' "$b2" > "$WORK/mo.xml" 2>/dev/null
-    if [ -s "$WORK/mo.xml" ] && grep -q "TX DMIC MUX3" "$WORK/mo.xml" 2>/dev/null; then
-      bind_file "$WORK/mo.xml" "$MIXER_OVL_S" "mixer-overlay" && ok=1
-    fi
-  fi
-  [ "$ok" = "1" ] && log "3麦已注入(base+overlay)" || log "3麦注入失败"
-}
-
-apply_rec(){
-  R=$(num "$(cfg_get rec_gain)")
-  [ "$R" -eq 0 ] && return 0
-  mkdir -p "$WORK" 2>/dev/null
-  ok=0
+  _i=0; _ok=0
   for f in "$MIXER_BASE" "$MIXER_OVL_S"; do
-    b=$(bak_of "$f"); [ -f "$b" ] || continue
-    sed "s|ADC1 Volume\" value=\"[0-9]*\"|ADC1 Volume\" value=\"$R\"|g" "$b" > "$WORK/rec.xml" 2>/dev/null
-    [ -s "$WORK/rec.xml" ] && { bind_file "$WORK/rec.xml" "$f" "录音增益"; ok=1; }
+    _i=$((_i + 1))
+    b=$(bak_of "$f")
+    [ -f "$b" ] || { log "缺原厂备份 $f"; continue; }
+    if [ "$_i" = "1" ]; then _tag="mixer-base"; else _tag="mixer-overlay"; fi
+    out="$WORK/mx$_i.xml"
+    if build_mixer_file "$b" "$out"; then
+      bind_file "$out" "$f" "$_tag" && _ok=$((_ok + 1))
+    fi
   done
-  [ "$ok" = "1" ] && log "录音增益=$R"
+  log "mixer 生成完成: 麦克风=$MIC_ON 录音增益=$([ "$REC_ON" = "1" ] && echo "$REC_G" || echo 0) 绑定成功 $_ok/2"
 }
 
 # ============ 5. 蓝牙 / USB / HiFi / 低功耗 ============
@@ -454,10 +508,10 @@ apply_all(){
   [ "$(num "$(cfg_get master)")" = "0" ] && { log "master=0"; return 0; }
   # 先挂载/属性, 再重启音频栈, 最后重写 tinymix
   # 原因: audio HAL 启动时会重载 mixer_paths, 覆盖之前的 tinymix 值
+  snapshot_tinymix
   apply_hires
   apply_dax_tune
-  apply_mic
-  [ "$(num "$(cfg_get rec_on)")" = "1" ] && apply_rec
+  apply_mixer
   apply_bt
   apply_usb
   apply_hifi
@@ -530,8 +584,83 @@ restore_all(){
   log "还原完成"
 }
 
+# ============================================================
+# 硬件能力自检（V3.3）-> $CAPFILE
+#   与网络模块同一思路: 先确认本机硬件到底支持哪些项, 再决定动不动它
+# ============================================================
+CAPFILE=$MODDIR/capabilities.txt
+
+cap_ctl(){
+  _v=$($TM "$1" 2>/dev/null | head -1)
+  [ -n "$_v" ] && echo "    [有] $_v" || echo "    [缺] $1"
+}
+
+ctl_exists_q(){ ctl_exists "$1" && echo 可用 || echo 缺失; }
+
+probe_caps(){
+  {
+    echo "============================================================"
+    echo " Xiaomi 14 全域音频优化 $AVER  硬件能力自检"
+    echo " 时间: $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "============================================================"
+    echo "机型: $(getprop ro.product.model) / $(getprop ro.product.device) (sku=$(getprop ro.boot.product.vendor.sku))"
+    echo "内核: $(uname -r)"
+    echo "配置: master=$(cfg_get master) mic=$(cfg_get mic) dax=$(cfg_get dax) hires=$(cfg_get hires) playchain=$(cfg_get playchain) asym=$(cfg_get asym)"
+    echo
+    echo "--- 混音器（tinymix）---"
+    if $TM >/dev/null 2>&1; then
+      echo "  可用, 控件总数 $($TM 2>/dev/null | grep -c '^[0-9]')"
+    else
+      echo "  不可用 -> 播放链/非对称/麦克风三层全部无法实施"
+    fi
+    echo "  [非对称扬声器]";      cap_ctl "T AMP PCM Gain"; cap_ctl "B AMP PCM Gain"
+    echo "  [T/B 细粒度数字音量]"; cap_ctl "T Digital PCM Volume"; cap_ctl "B Digital PCM Volume"
+    echo "  [播放链]";            for c in "RX_RX0 Digital Volume" "RX_RX0 Mix Digital Volume" "RX_COMP1 Switch" "RX_Softclip Enable" "RX_HPH_PWR_MODE"; do cap_ctl "$c"; done
+    echo "  [三麦注入所需]";      for c in "TX_AIF1_CAP Mixer DEC1" "TX DMIC MUX1" "TX_AIF1_CAP Mixer DEC2" "TX DMIC MUX2" "$MIC_CTL1" "$MIC_CTL2"; do cap_ctl "$c"; done
+    echo "  [录音模拟麦增益]";    cap_ctl "ADC1 Volume"
+    echo
+    echo "--- 挂载目标文件 ---"
+    _miss=0
+    for f in $ALL_FILES; do
+      if [ -f "$f" ]; then echo "  [有] $f"; else echo "  [缺] $f"; _miss=$((_miss+1)); fi
+    done
+    echo "  缺失 $_miss 个"
+    echo
+    echo "--- 原厂备份可逆性 ---"
+    echo "  $BAK: $(ls -1 "$BAK" 2>/dev/null | grep -c .) 项"
+    echo "  tinymix 快照: $( [ -s "$BAK/tinymix_all.txt" ] && echo "$(grep -c . "$BAK/tinymix_all.txt") 行" || echo '空 -> 还原只依赖 factory.sh 硬编码基线')"
+    echo "  属性快照: $( [ -s "$BAK/props/audio.txt" ] && echo "$(grep -c . "$BAK/props/audio.txt") 行" || echo 无)"
+    echo
+    echo "--- 本机麦克风拓扑（原厂 base）---"
+    _b=$(bak_of "$MIXER_BASE")
+    if [ -f "$_b" ]; then
+      awk '/<path name="handset-dmic-endfire">/,/<\/path>/' "$_b" | sed 's/^/  /'
+      echo "  => 原厂为 2 路数字麦(DMIC1 + DMIC3)；$MIC_CTL1/$MIC_CTL2 在本机 $(ctl_exists_q "$MIC_CTL1")/$(ctl_exists_q "$MIC_CTL2")，可追加第 3 路($MIC_DMIC)"
+    else
+      echo "  缺原厂备份, 无法判断"
+    fi
+    echo "--- 本机麦克风拓扑（原厂 overlay_static, 同名 path 覆盖 base）---"
+    _b2=$(bak_of "$MIXER_OVL_S")
+    if [ -f "$_b2" ]; then
+      awk '/<path name="handset-dmic-endfire">/,/<\/path>/' "$_b2" | sed 's/^/  /'
+    fi
+    echo
+    echo "--- 本机可优化项（只有以下项在硬件上被验证过）---"
+    echo "  [x] 杜比 DAP 实时调音 属性(实测被 Dolby HAL 读取)"
+    echo "  [x] 非对称扬声器 T/B 增益 ($(ctl_exists_q 'T AMP PCM Gain'))"
+    echo "  [x] 播放链 (RX 数字音量/COMP/Softclip/HPH_PWR_MODE)"
+    echo "  [x] DAX 深度调音 (bind /odm + /vendor)"
+    echo "  [x] HiRes deep_buffer 96k (bind policy)"
+    echo "  [$([ "$(ctl_exists_q "$MIC_CTL1")" = 可用 ] && echo x || echo ' ')] 第三路麦(opt-in, 默认关, 需人工试通话)"
+    echo "  [$([ "$(ctl_exists_q 'T Digital PCM Volume')" = 可用 ] && echo x || echo ' ')] T/B 细粒度数字音量(opt-in, 默认 0=不动)"
+    echo "  [ ] 未使用: 4 麦(AEC/beamforming 由 DSP 的 voice 拓扑决定, 不通过 mixer_paths 暴露)"
+    echo "============================================================"
+  } > "$CAPFILE" 2>/dev/null
+  log "硬件能力自检已写入 $CAPFILE"
+}
+
 status(){
-  echo "══════ X14 Audio V3.0 ══════"
+  echo "══════ X14 Audio V3.3 ══════"
   echo "设备: $(getprop ro.product.model) / $(getprop ro.boot.product.vendor.sku)"
   echo ""
   echo "[1] 杜比 DAP"
@@ -559,6 +688,10 @@ status(){
   echo ""
   echo "[6] 配置"
   grep -vE '^\s*#|^\s*$' "$CONF" 2>/dev/null | sed 's/^/  /'
+  echo ""
+  echo "[7] 硬件能力"
+  echo "  控件总数: $($TM 2>/dev/null | grep -c '^[0-9]')   三麦控件: $(ctl_exists_q "$MIC_CTL1")"
+  echo "  mixer 绑定: $(mount | grep -cE 'mixer_paths_(pineapple_mtp|overlay_static)\.xml') 个   报告: $CAPFILE"
 }
 
 case "$1" in
@@ -581,5 +714,7 @@ case "$1" in
     ;;
   geq)     build_geq ;;
   tonly)   tinymix_only ;;
-  *) echo "用法: x14opt {init|apply|restore|status|set K V|geq|tonly}" ;;
+  snapshot) snapshot_tinymix ;;
+  probe)   check_device; ensure_conf; probe_caps; cat "$CAPFILE" ;;
+  *) echo "用法: x14opt {init|apply|restore|status|set K V|geq|tonly|probe}" ;;
 esac

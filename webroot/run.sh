@@ -6,9 +6,13 @@ CONF=$MODDIR/x14.conf
 [ -s "$ENG" ] || { echo "引擎缺失"; exit 1; }
 [ -s "$CONF" ] || { sh "$ENG" init >/dev/null 2>&1; }
 
-KEYS="master daptune bass clarity stage dialog asym t_gain b_gain t_vol b_vol playchain vol comp hph_hifi dax dax_vbass dax_harm dax_dialog dax_dyn dax_surr dax_virt dax_vband dax_sib dax_mbdrc call_on call_fluence mic rec_on bt_on usb_on hifi_on lowpower hires"
+KEYS="master daptune bass clarity stage dialog asym t_gain b_gain t_vol b_vol playchain vol comp hph_hifi dax dax_vbass dax_harm dax_dialog dax_dyn dax_surr dax_virt dax_vband dax_sib dax_mbdrc call_on call_fluence mic rec_paths rec_on bt_on usb_on hifi_on lowpower hires"
 
-cmd=$(echo "$QUERY_STRING" | sed -n 's/.*cmd=\([^&]*\).*/\1/p' | head -1)
+# V3.3: 取值加 "&" 边界锚定。
+# 原写法 .*$k= 是贪婪匹配且没有边界, 而 vol 是 t_vol/b_vol 的子串 ->
+# 参数顺序不利时会把 t_vol 的值当成 vol 读走。
+QS="&$QUERY_STRING"
+cmd=$(echo "$QS" | sed -n 's/.*[&]cmd=\([^&]*\).*/\1/p' | head -1)
 
 case "$cmd" in
   get)
@@ -20,7 +24,7 @@ case "$cmd" in
     ;;
   setonly)
     for k in $KEYS; do
-      v=$(echo "$QUERY_STRING" | sed -n "s/.*$k=\([^&]*\).*/\1/p" | head -1)
+      v=$(echo "$QS" | sed -n "s/.*[&]$k=\([^&]*\).*/\1/p" | head -1)
       [ -z "$v" ] && continue
       sh "$ENG" set "$k" "$v" >/dev/null 2>&1
     done
@@ -30,7 +34,7 @@ case "$cmd" in
     ;;
   apply)
     for k in $KEYS; do
-      v=$(echo "$QUERY_STRING" | sed -n "s/.*$k=\([^&]*\).*/\1/p" | head -1)
+      v=$(echo "$QS" | sed -n "s/.*[&]$k=\([^&]*\).*/\1/p" | head -1)
       [ -z "$v" ] && continue
       sh "$ENG" set "$k" "$v" >/dev/null 2>&1
     done
@@ -56,6 +60,9 @@ case "$cmd" in
       echo "守护已开启"
     fi
     echo "守护状态: $(pgrep -f 'audio_x14_opt/service.sh' >/dev/null 2>&1 && echo 运行中 || echo 已停止)"
+    ;;
+  probe)
+    sh "$ENG" probe
     ;;
   restore)
     sh "$ENG" restore >/dev/null 2>&1

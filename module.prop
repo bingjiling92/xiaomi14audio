@@ -1,6 +1,6 @@
 id=audio_x14_opt
 name=Xiaomi 14 全域音频优化
-version=V3.2
-versionCode=32000
+version=V3.3
+versionCode=33000
 author=bingjiling92
-description=小米14(houji/pineapple) Android16 全域音频优化。七层: 杜比DAP实时调音 + 非对称扬声器平衡(顶1014/底2x1115K独立功放) + 播放链硬件层 + DAX深层调音(virtual-bass/谐波/对白/环绕/虚拟化) + 通话麦克风(同步overlay) + 蓝牙USB HiFi低功耗 + HiRes。硬编码原厂基线保证一键完全还原。
+description=小米14(houji/pineapple) Android16 全域音频优化 V3.3。V3.3 修复: V3.2 的「3麦注入」实为把原厂双麦替换成单麦(听筒通话链路被改坏, 现改为真追加+条数校验); tinymix 原厂快照恒为 0 字节(post-fs-data 阶段混音器未就绪, 现改到开机后 apply 前抓); 录音增益全文替换会连坐通话路径(现限定 rec_paths); fluence 普通 setprop 会污染原厂快照(现改 resetprop -n); 补齐原厂基线键; post-fs-data 有界等待; WebUI 取参加 & 边界锚定。七层: 杜比DAP + 非对称扬声器平衡(顶1014/底2x1115K独立功放) + 播放链硬件层 + DAX深层调音 + 通话麦克风 + 蓝牙USB HiFi低功耗 + HiRes。新增 probe 硬件能力自检。

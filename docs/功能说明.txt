@@ -1,5 +1,5 @@
 ════════════════════════════════════════════
-  小米14 全域音频优化 V3.2 · 功能说明
+  小米14 全域音频优化 V3.3 · 功能说明
 ════════════════════════════════════════════
 
 【适配机型】
@@ -19,8 +19,8 @@
  1 · 杜比 DAP 实时调音 ············· 默认开
  2 · 非对称扬声器平衡 ············· 默认开
  3 · 播放链硬件层 ················· 默认开
- 4 · DAX 深层调音 ················· 默认开
- 5 · 3麦通话阵列 ················· 默认开
+ 4 · DAX 深层调音 ················· 默认关
+ 5 · 3麦通话阵列 ················· 默认关
  6 · 外接解码 ····················· 默认关
  7 · Hi-Res 96kHz ················· 默认关
 
@@ -113,7 +113,7 @@
 
 
 ────────────────────────────────────────────
-4 · DAX 深层调音        默认: 开
+4 · DAX 深层调音        默认: 关
 ────────────────────────────────────────────
   原理: 直接改写杜比 DAX 的 XML 调音文件, 效果最细腻
 
@@ -137,16 +137,26 @@
 
 
 ────────────────────────────────────────────
-5 · 3麦通话阵列        默认: 开
+5 · 3麦通话阵列        默认: 关
 ────────────────────────────────────────────
-  原理: 原厂通话只启用 2 路数字麦, 开启后补第 3 路,
-        拾音范围更广, 逆光/嘈杂环境下人声更清楚
+  原理: 原厂通话只启用 2 路数字麦
+        (handset-dmic-endfire = 顶部 DMIC1 + 底部 DMIC3 双麦降噪),
+        开启后在原厂基础上"追加"第 3 路：DEC3 + DMIC MUX3 = DMIC2
 
   ★ 必须同时注入 base 和 overlay 两个文件,
     因为 mixer_paths_overlay_static 会按名字覆盖 base 的同名path,
     只改一个不生效
 
-  ★ 通话质量有明显提升时会感觉到耗电略增
+  ★ 本机 4 麦的物理通道(从 mixer_paths 反推):
+      dmic1→DMIC0  dmic2→DMIC1  dmic3→DMIC2  dmic4→DMIC3
+    而 4 麦的 AEC / beamforming 由 DSP 的 voice 拓扑决定,
+    不通过 mixer_paths 暴露, 本模块管不到 ——
+    这一层能做的只是让通话上行多一路原始数字麦
+
+  ★ 会真实改变通话上行链路, 请先在安静环境试一次通话再决定是否长期开启
+
+  ★ 生成后会回读校验: 若路径内 ctl 条数 < 3(说明原厂内容被丢弃),
+    判定失败, 不挂载(这是 V3.3 新增的保护)
 
 
 ────────────────────────────────────────────
@@ -229,6 +239,13 @@
   预览 GEQ 曲线
     su -c 'sh /data/adb/modules/audio_x14_opt/common/x14opt.sh geq'
 
+  硬件能力自检(只读, 不写入不启动守护)
+    su -c 'sh /data/adb/modules/audio_x14_opt/common/x14opt.sh probe'
+      报告: /data/adb/modules/audio_x14_opt/capabilities.txt
+
+  补 tinymix 原厂快照(开机时已自动执行, 一般无需手动)
+    su -c 'sh /data/adb/modules/audio_x14_opt/common/x14opt.sh snapshot'
+
 
 ════════════════════════════════════════════
 六、调音建议路线
@@ -304,7 +321,79 @@
 
 
 ════════════════════════════════════════════
-文件: Xiaomi14全域音频优化_V3.2.zip  (25.7 KB, 13文件)
+文件: Xiaomi14全域音频优化_V3.3.zip
 日志: /data/local/tmp/X14_Audio.log
 备份: /data/adb/audio_x14_opt_backup/
+能力: /data/adb/modules/audio_x14_opt/capabilities.txt
 ════════════════════════════════════════════
+
+
+════════════════════════════════════════════
+九、V3.3 相对 V3.2 的改动
+════════════════════════════════════════════
+
+  全部为实机复现的问题, 静态读代码看不出来。
+
+  1. 修复: 「3麦注入」实际是「替换」(严重)
+     原因: awk 打印完注入行后立刻补 </path> 并置标志位跳过原内容,
+           等于把原厂双麦路径整段丢弃
+     实测: base   4 条 ctl -> 2 条
+           overlay 18 条 ctl -> 2 条
+           因 overlay 覆盖 base, 听筒通话(handset-dmic-endfire)
+           从双麦降噪变成单麦 DMIC2, 而日志仍写「3麦已注入」
+     解法: 改为真正追加(原厂 DMIC1+DMIC3 保留, 追加 DEC3/DMIC2),
+           生成后回读校验路径内 ctl 条数 >= 3, 不达标判失败不挂载
+     实测: base 4 -> 6 条, 其余部分与备份逐字节一致
+     同时: 默认值改为关(mic=0), 打开前先校验硬件确有
+           TX_AIF1_CAP Mixer DEC3 与 TX DMIC MUX3
+
+  2. 修复: tinymix 原厂快照恒为 0 字节
+     原因: 备份在 post-fs-data 阶段做, 那时混音器还没起来,
+           tinymix 无输出(但退出码 0), 重定向后得到 0 字节文件
+           本文档以前写的「529 控件快照」实际并不存在
+     解法: 快照改到开机后、apply 之前由 service.sh 调 snapshot 补齐
+
+  3. 修复: 录音增益会连坐通话路径
+     原因: 原实现是全文 gsub ADC1 Volume
+     实测: 该控件在本机出现在 9~10 处 path 中, 含
+           recorder-ozo-fmic / camcorder-tmic-azoom (录音)
+           handset-tmic-endfire / speaker-dmic-endfire /
+           handset-dmic-dual-adc / va-mic-enroll / va-mic-asr /
+           handset-mic-unprocessed (通话/语音唤醒)
+     解法: 新增 rec_paths(默认 recorder|camcorder), 只对录音路径下手
+
+  4. 修复: apply_rec 会覆盖 apply_mic
+     原因: 两者都 bind 同一个目标文件, 后跑者胜
+     解法: 合并为一次生成(build_mixer_file -> apply_mixer)
+
+  5. 修复: fluence 用普通 setprop 会污染原厂快照
+     原因: persist.* 用普通 setprop 会落盘, 下次开机抓快照时
+           就把改过的值当成原厂存进备份
+     解法: 统一改 resetprop -n(不落盘, 与其它层一致)
+
+  6. 修复: 原厂基线不全
+     原因: factory.sh 只覆盖 9 个 DAP 键, 而模块还会改
+           dap.param.eq / dap.geq.enable / dap.enabled / dap.speaker /
+           global.enable / effect_global / fluence.* —— 
+           这些只靠(可能被污染的)快照还原
+     解法: 按本机首次干净快照补齐硬编码基线
+
+  7. 修复: post-fs-data 无上限等待
+     原因: until [ -f /odm/etc/dolby/dax-default.xml ]; do sleep 1; done
+           本机有该文件所以没暴露, 换机器/换版本会把启动挂住
+     解法: 最多等 30s, 超时跳过 init
+
+  8. 修复: WebUI 取参贪婪匹配撞子串
+     原因: sed 's/.*$k=.../' 中 .* 贪婪, 且 vol 是 t_vol/b_vol 的子串
+     实测: 'vol=92&t_vol=0&cmd=setonly' 旧版把 vol 读成 0
+     解法: 统一加 "&" 边界锚定
+
+  9. 新增: 配置文件追加加固
+     问题: 配置文件没有结尾换行时, echo >> 会把新键粘到最后一行
+           (实测把 THERM_HYST=2 与另一个键粘成一行)
+     解法: 追加前先补换行, 判据 [ "$(tail -c1 f | wc -l)" = "0" ]
+
+ 10. 新增: 硬件能力自检 probe 子命令
+     输出 tinymix 控件总数与各层所需控件是否存在、13 个挂载目标
+     文件是否齐全、备份/快照可逆性、麦克风拓扑、以及哪些项在
+     硬件上被验证过。报告: capabilities.txt

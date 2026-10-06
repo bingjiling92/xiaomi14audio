@@ -39,6 +39,19 @@ restore_factory_baseline(){
   "$RP" -n persist.vendor.dolby.bass.enable "$FACTORY_BASS_EN" >/dev/null 2>&1
   "$RP" -n persist.vendor.dolby.spectral.enable "$FACTORY_SPECTRAL_EN" >/dev/null 2>&1
   "$RP" -n persist.vendor.dolby.virtualizer.enable "$FACTORY_VIRT_EN" >/dev/null 2>&1
+  # V3.3 补齐: 模块会改这些键, 但原先没写进硬编码基线 ->
+  # 一旦属性快照被污染, 只靠上面 9 个键还原不干净。
+  # 下列取值取自本机首次(干净)快照 props/audio.txt。
+  "$RP" -n persist.vendor.dolby.dap.param.eq custom >/dev/null 2>&1
+  "$RP" -n persist.vendor.dolby.dap.geq.enable 1 >/dev/null 2>&1
+  "$RP" -n persist.vendor.dolby.dap.enabled true >/dev/null 2>&1
+  "$RP" -n persist.vendor.dolby.dap.speaker true >/dev/null 2>&1
+  "$RP" -n persist.vendor.dolby.global.enable 1 >/dev/null 2>&1
+  "$RP" -n persist.vendor.audio.effect_global 1 >/dev/null 2>&1
+  "$RP" -n persist.vendor.audio.fluence.voicecall false >/dev/null 2>&1
+  "$RP" -n persist.vendor.audio.fluence.speaker false >/dev/null 2>&1
+  "$RP" -n persist.vendor.audio.fluence.tmic.enabled false >/dev/null 2>&1
+  "$RP" -n persist.vendor.audio.fluence.voicerec false >/dev/null 2>&1
 
   # --- 硬件 ---
   for c in "RX_RX0 Digital Volume" "RX_RX1 Digital Volume" "RX_RX2 Digital Volume" \

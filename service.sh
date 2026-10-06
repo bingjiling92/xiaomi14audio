@@ -5,6 +5,7 @@ MODDIR=${0%/*}
 ENG=$MODDIR/common/x14opt.sh
 [ -s "$ENG" ] || exit 0
 LOG=/data/local/tmp/X14_Audio.log
+echo "[$(date '+%m-%d %H:%M:%S')] audio_x14_opt V3.3 守护启动" >> $LOG
 FLAG=$MODDIR/.restored
 
 until [ "$(getprop sys.boot_completed)" = "1" ]; do sleep 5; done
@@ -14,6 +15,11 @@ if [ -f "$FLAG" ]; then
   echo "[$(date '+%m-%d %H:%M:%S')] 存在还原标记, 不自动应用" >> $LOG
   exit 0
 fi
+
+# V3.3: 先把 tinymix 原厂快照补齐。
+# 原实现在 post-fs-data 阶段抓, 那时混音器还没就绪 -> tinymix_all.txt 恒为 0 字节。
+# 必须放在 apply 之前(apply 会 restart_audio, 控件值会被改写)。
+sh "$ENG" snapshot
 
 sh "$ENG" apply
 
